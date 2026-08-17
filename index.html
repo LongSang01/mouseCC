@@ -81,10 +81,7 @@
     <script type="module">
       import { DareuA950Pro } from "./js/devices/dareu_a950pro.js";
       import { RazerV2Pro } from "./js/devices/razer_v2pro.js";
-      import {
-        isWebHIDSupported,
-        detectPlatform,
-      } from "./js/common/platform.js";
+      import { isWebHIDSupported, showUdevHint } from "./js/common/platform.js";
       import { log, logRaw } from "./js/common/ui.js";
 
       const DRIVERS = [
@@ -96,27 +93,6 @@
 
       function findDriver(vid, pid) {
         return DRIVERS.find((d) => d.vid === vid && d.pids.includes(pid));
-      }
-
-      function showUdevHint(vids) {
-        if (detectPlatform() !== "linux") return;
-        log("如果提示 'Failed to open the device',请运行:");
-        logRaw("");
-        logRaw(
-          "cat <<'EOF' | sudo tee /etc/udev/rules.d/71-mouse-webhid.rules",
-        );
-        for (const v of vids) {
-          const vid = v.vid.toString(16).padStart(4, "0");
-          const pid = v.pid.toString(16).padStart(4, "0");
-          logRaw(
-            `ACTION!="remove", SUBSYSTEMS=="usb", ATTRS{idVendor}=="${vid}", ATTRS{idProduct}=="${pid}", MODE="0660", TAG+="uaccess"`,
-          );
-        }
-        logRaw("EOF");
-        logRaw("");
-        logRaw("sudo udevadm control --reload-rules && sudo udevadm trigger");
-        logRaw("");
-        log("然后重启 Chrome");
       }
 
       if (!isWebHIDSupported()) {
@@ -152,6 +128,7 @@
             if (!ok) {
               showUdevHint(
                 driver.pids.map((pid) => ({ vid: driver.vid, pid })),
+                logRaw,
               );
             }
           } catch (e) {
@@ -163,7 +140,7 @@
             ) {
               const picked = devices?.[0];
               if (picked) {
-                showUdevHint([{ vid: picked.vendorId, pid: picked.productId }]);
+                showUdevHint([{ vid: picked.vendorId, pid: picked.productId }], logRaw);
               }
             }
           }
