@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mouse WebHID 控制台</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Mouse WebHID 控制台</h1>
+      <div class="sub">支持 DAREU A950 Pro / Razer Viper V2 Pro</div>
+
+      <div class="grid">
+        <div class="panel">
+          <h2>连接</h2>
+          <div class="statline">
+            <span id="statusDot" class="status-dot"></span>
+            <span id="statusText">未连接</span>
+          </div>
+          <div class="row">
+            <button id="btnConnect" class="primary">连接设备</button>
+            <button id="btnDisconnect" disabled>断开</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>状态</h2>
+          <div class="kv"><span>电量</span><span id="battVal">--</span></div>
+          <div class="kv">
+            <span>充电中</span><span id="chargeVal">--</span>
+          </div>
+          <div class="kv"><span>当前 DPI</span><span id="dpiVal">--</span></div>
+          <div class="kv">
+            <span>当前回报率</span><span id="pollVal">--</span>
+          </div>
+          <div class="row" style="margin-top: 12px">
+            <button id="btnReadAll">刷新状态</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>DPI 档位</h2>
+          <div id="stages"></div>
+          <div class="row" style="margin-top: 10px">
+            <label>当前档位</label>
+            <select id="activeStage"></select>
+            <span id="stageSummary" class="hint"></span>
+          </div>
+          <div class="row" style="margin-top: 6px">
+            <button id="btnSetStages" class="primary">写入档位配置</button>
+            <button id="btnGetStages">读取档位配置</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>回报率</h2>
+          <div class="row">
+            <select id="pollRate">
+              <option value="125">125 Hz</option>
+              <option value="250">250 Hz</option>
+              <option value="500">500 Hz</option>
+              <option value="1000" selected>1000 Hz</option>
+            </select>
+          </div>
+          <div class="row">
+            <button id="btnSetPoll" class="primary">设置回报率</button>
+            <button id="btnGetPoll">读取回报率</button>
+          </div>
+        </div>
+
+        <div class="panel full">
+          <h2>通信日志</h2>
+          <textarea id="log" readonly></textarea>
+          <div class="row" style="margin-top: 8px">
+            <button id="btnClearLog">清空日志</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { DareuA950Pro } from "./js/devices/dareu_a950pro.js";
+      import { RazerV2Pro } from "./js/devices/razer_v2pro.js";
+      import {
+        isWebHIDSupported,
+        detectPlatform,
+      } from "./js/common/platform.js";
+      import { log, logRaw } from "./js/common/ui.js";
+
+      const DRIVERS = [
+        { vid: 0x260d, pids: [0x1112, 0x1115], Class: DareuA950Pro },
+        { vid: 0x1532, pids: [0x00a5, 0x00a6], Class: RazerV2Pro },
+      ];
+
+      let current = null;
+
+      function findDriver(vid, pid) {
+        return DRIVERS.find((d) => d.vid === vid && d.pids.includes(pid));
+      }
+
+      function showUdevHint(vids) {
+        if (detectPlatform() !== "linux") return;
+        log("如果提示 'Failed to open the device',请运行:");
+        logRaw("");
+        logRaw(
+          "cat <<'EOF' | sudo tee /etc/udev/rules.d/71-mouse-webhid.rules",
+        );
+        for (const v of vids) {
+          const vid = v.vid.toString(16).padStart(4, "0");
+          const pid = v.pid.toString(16).padStart(4, "0");
+          logRaw(
+            `ACTION!="remove", SUBSYSTEMS=="usb", ATTRS{idVendor}=="${vid}", ATTRS{idProduct}=="${pid}", MODE="0660", TAG+="uaccess"`,
+          );
+        }
+        logRaw("EOF");
+        logRaw("");
+        logRaw("sudo udevadm control --reload-rules && sudo udevadm trigger");
+        logRaw("");
+        log("然后重启 Chrome");
+      }
+
+      if (!isWebHIDSupported()) {
+        log("⚠️ 当前浏览器不支持 WebHID API,请使用桌面版 Chrome / Edge。");
+      } else {
+        log("就绪。点击「连接设备」开始。");
+      }
+
+      document
+        .getElementById("btnConnect")
+        .addEventListener("click", async () => {
+          try {
+            const allFilters = DRIVERS.flatMap((d) =>
+              d.pids.map((pid) => ({ vendorId: d.vid, productId: pid })),
+            );
+            const devices = await navigator.hid.requestDevice({
+              filters: allFilters,
+            });
+            if (!devices.length) return;
+
+            const picked = devices[0];
+            const driver = findDriver(picked.vendorId, picked.productId);
+            if (!driver) {
+              log(
+                `不支持的设备: VID=0x${picked.vendorId.toString(16)} PID=0x${picked.productId.toString(16)}`,
+              );
+              return;
+            }
+
+            current = new driver.Class();
+            current.initUI();
+            const ok = await current.connect(devices);
+            if (!ok) {
+              showUdevHint(
+                driver.pids.map((pid) => ({ vid: driver.vid, pid })),
+              );
+            }
+          } catch (e) {
+            log(`连接失败: ${e.message}`);
+            if (
+              e.message.includes("open") ||
+              e.message.includes("access") ||
+              e.message.includes("Failed")
+            ) {
+              const picked = devices?.[0];
+              if (picked) {
+                showUdevHint([{ vid: picked.vendorId, pid: picked.productId }]);
+              }
+            }
+          }
+        });
+
+      document
+        .getElementById("btnDisconnect")
+        .addEventListener("click", async () => {
+          if (current) {
+            await current.disconnect();
+            current = null;
+          }
+        });
+    </script>
+  </body>
+</html>
