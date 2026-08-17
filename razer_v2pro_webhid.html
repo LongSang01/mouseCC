@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Razer Viper V2 Pro · WebHID 控制台</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0d1117;
+        --panel: #141b24;
+        --line: #26313d;
+        --text: #d7dee6;
+        --dim: #7c8a99;
+        --green: #39d353;
+        --red: #f0625a;
+        --accent: #00c2a8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "SF Mono", "Consolas", "Menlo", monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        padding: 40px 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      h1 {
+        font-size: 16px;
+        letter-spacing: 0.04em;
+        color: var(--accent);
+        margin: 0 0 2px;
+        text-transform: uppercase;
+        text-align: center;
+      }
+      .sub {
+        color: var(--dim);
+        margin-bottom: 20px;
+        font-size: 12px;
+        text-align: center;
+      }
+      .container {
+        width: 960px;
+        max-width: 100%;
+        margin: 0 auto;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 800px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 16px;
+      }
+      .panel h2 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--dim);
+        margin: 0 0 12px;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 8px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+      label {
+        color: var(--dim);
+        min-width: 64px;
+        font-size: 12px;
+      }
+      input,
+      select {
+        background: #0a0f14;
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 6px 8px;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 13px;
+      }
+      select {
+        width: 110px;
+      }
+      button {
+        background: #1b2530;
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 7px 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+      }
+      button:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      button.primary {
+        background: var(--accent);
+        color: #04211c;
+        border-color: var(--accent);
+        font-weight: 600;
+      }
+      button.primary:hover {
+        color: #04211c;
+        filter: brightness(1.1);
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--red);
+        display: inline-block;
+        margin-right: 6px;
+      }
+      .status-dot.on {
+        background: var(--green);
+      }
+      .statline {
+        display: flex;
+        align-items: center;
+        color: var(--dim);
+        font-size: 12px;
+        margin-bottom: 16px;
+      }
+      .kv {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+        border-bottom: 1px dashed var(--line);
+        font-size: 13px;
+      }
+      .kv span:last-child {
+        color: var(--accent);
+      }
+      .full {
+        grid-column: 1/-1;
+      }
+      #log {
+        width: 100%;
+        height: 240px;
+        background: #0a0f14;
+        border: 1px solid var(--line);
+        color: var(--dim);
+        font-family: inherit;
+        font-size: 11.5px;
+        padding: 10px;
+        border-radius: 4px;
+        resize: vertical;
+        white-space: pre;
+        overflow: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--line) transparent;
+      }
+      #log::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      #log::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      #log::-webkit-scrollbar-thumb {
+        background: var(--line);
+        border-radius: 4px;
+        border: 2px solid #0a0f14;
+      }
+      #log::-webkit-scrollbar-thumb:hover {
+        background: var(--accent);
+      }
+      input[type="number"] {
+        appearance: textfield;
+        -moz-appearance: textfield;
+      }
+      input[type="number"]::-webkit-inner-spin-button,
+      input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      input:disabled {
+        opacity: 0.3;
+      }
+      #stages .stage-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      #stages .stage-row input[type="checkbox"] {
+        width: auto;
+        accent-color: var(--accent);
+      }
+      #stages .stage-row .stage-label {
+        min-width: 44px;
+      }
+      #stages .stage-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid var(--line);
+        display: inline-block;
+        flex: none;
+      }
+      #stages .stage-name {
+        color: var(--dim);
+        font-size: 11px;
+        flex: none;
+      }
+      #stages .dpi-wrap {
+        position: relative;
+        display: inline-block;
+      }
+      #stages .dpi-wrap input[type="number"] {
+        padding-right: 20px;
+        width: 80px;
+      }
+      #stages .dpi-wrap .spin {
+        position: absolute;
+        right: 1px;
+        width: 19px;
+        height: 50%;
+        border: 0;
+        border-left: 1px solid var(--line);
+        background: #141b24;
+        color: var(--dim);
+        cursor: pointer;
+        padding: 0;
+        font-size: 8px;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0;
+      }
+      #stages .dpi-wrap .spin:hover {
+        background: var(--accent);
+        color: #04211c;
+      }
+      #stages .dpi-wrap .spin.up {
+        top: 1px;
+        border-top-right-radius: 3px;
+      }
+      #stages .dpi-wrap .spin.down {
+        bottom: 1px;
+        border-bottom-right-radius: 3px;
+        border-top: 1px solid var(--line);
+      }
+      #stages .dpi-wrap input:disabled ~ .spin {
+        opacity: 0.3;
+        pointer-events: none;
+      }
+      .hint {
+        color: var(--dim);
+        font-size: 11px;
+        line-height: 1.6;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Razer Viper V2 Pro &middot; WebHID 控制台</h1>
+      <div class="sub">
+        VID 0x1532 &nbsp;/&nbsp; PID 0x00A6(无线) 或 0x00A5(有线) &nbsp;(型号
+        RZ01-0439)
+      </div>
+
+      <div class="grid">
+        <div class="panel">
+          <h2>连接</h2>
+          <div class="statline">
+            <span id="statusDot" class="status-dot"></span>
+            <span id="statusText">未连接</span>
+          </div>
+          <div class="row">
+            <button id="btnConnect" class="primary">连接设备</button>
+            <button id="btnDisconnect" disabled>断开</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>状态</h2>
+          <div class="kv"><span>电量</span><span id="battVal">--</span></div>
+          <div class="kv">
+            <span>充电中</span><span id="chargeVal">--</span>
+          </div>
+          <div class="kv"><span>当前 DPI</span><span id="dpiVal">--</span></div>
+          <div class="kv">
+            <span>当前回报率</span><span id="pollVal">--</span>
+          </div>
+          <div class="row" style="margin-top: 12px">
+            <button id="btnReadAll">刷新状态</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>DPI 档位 (Stages)</h2>
+          <div id="stages"></div>
+          <div class="row" style="margin-top: 10px">
+            <label>当前档位</label>
+            <select id="activeStage"></select>
+            <span id="stageSummary" class="hint"></span>
+          </div>
+          <div class="row" style="margin-top: 6px">
+            <button id="btnSetStages" class="primary">写入档位配置</button>
+            <button id="btnGetStages">读取档位配置</button>
+          </div>
+          <div class="hint">支持 5 档 DPI 循环,勾选可启用/禁用对应档位</div>
+        </div>
+
+        <div class="panel">
+          <h2>回报率 (Polling Rate)</h2>
+          <div class="row">
+            <select id="pollRate">
+              <option value="125">125 Hz</option>
+              <option value="500">500 Hz</option>
+              <option value="1000" selected>1000 Hz</option>
+            </select>
+          </div>
+          <div class="row">
+            <button id="btnSetPoll" class="primary">设置回报率</button>
+            <button id="btnGetPoll">读取回报率</button>
+          </div>
+          <div class="hint">默认只支持 <b>125 / 500 / 1000 Hz</b> 回报率</div>
+        </div>
+
+        <div class="panel full">
+          <h2>原始通信日志</h2>
+          <textarea id="log" readonly></textarea>
+          <div class="row" style="margin-top: 8px">
+            <button id="btnClearLog">清空日志</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        const VENDOR_ID = 0x1532;
+        const PRODUCT_IDS = [0x00a5, 0x00a6]; // 0xA5 有线/充电, 0xA6 无线接收器
+
+        let device = null;
+
+        const $ = (id) => document.getElementById(id);
+        const statusDot = $("statusDot");
+        const statusText = $("statusText");
+        const logBox = $("log");
+
+        function log(msg) {
+          const t = new Date().toLocaleTimeString();
+          logBox.textContent += `[${t}] ${msg}\n`;
+          logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function toHex(bytes) {
+          return Array.from(bytes)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join(" ");
+        }
+
+        function setConnected(connected) {
+          statusDot.classList.toggle("on", connected);
+          statusText.textContent = connected
+            ? `已连接: ${device.productName || "Razer Viper V2 Pro"} (PID 0x${device.productId.toString(16).padStart(4, "0")})`
+            : "未连接";
+          $("btnConnect").disabled = connected;
+          $("btnDisconnect").disabled = !connected;
+          [
+            "btnReadAll",
+            "btnSetPoll",
+            "btnGetPoll",
+            "btnSetStages",
+            "btnGetStages",
+          ].forEach((id) => ($(id).disabled = !connected));
+        }
+
+        // ---- 雷蛇 90 字节控制报文 (openrazer razer_report,已验证) ----
+        // [0]status [1]transactionId [2-3]remaining=0 [4]protocolType=0x00
+        // [5]dataSize [6]commandClass [7]commandId [8..87]arguments
+        // [88]crc  (对字节 2..87 做 XOR)  [89]reserved=0
+        function buildReport(commandClass, commandId, data = []) {
+          const report = new Uint8Array(90);
+          report[1] = 0x1f; // Viper V2 Pro 固定交易 ID
+          report[5] = data.length;
+          report[6] = commandClass;
+          report[7] = commandId;
+          report.set(data, 8);
+          let crc = 0;
+          for (let i = 2; i < 88; i++) crc ^= report[i];
+          report[88] = crc;
+          return report;
+        }
+
+        // WebHID 的 receiveFeatureReport 返回 DataView;
+        // 个别系统会多带一个 reportId=0x00 前缀字节,这里剥掉。
+        function normalizeResponse(dv) {
+          const bytes = Array.from(
+            new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength),
+          );
+          if (bytes.length === 91 && bytes[0] === 0x00) bytes.shift();
+          return bytes;
+        }
+
+        // 静默探测:reportId=0 读电量,能拿到有效响应才算可用(不打日志)
+        async function testBattery(dev) {
+          const report = buildReport(0x07, 0x80, [0x00, 0x00]);
+          await dev.sendFeatureReport(0, report);
+          await new Promise((r) => setTimeout(r, 110));
+          const bytes = normalizeResponse(await dev.receiveFeatureReport(0));
+          return (
+            bytes.length > 9 &&
+            bytes[6] === 0x07 &&
+            bytes[7] === 0x80 &&
+            bytes[9] !== 0
+          );
+        }
+
+        async function sendAndReceive(
+          commandClass,
+          commandId,
+          data = [],
+          waitMs = 90,
+        ) {
+          if (!device) throw new Error("设备未连接");
+          const report = buildReport(commandClass, commandId, data);
+
+          log(
+            `发送 class=0x${commandClass.toString(16)} id=0x${commandId.toString(16)} data=[${toHex(data)}] (reportId=0)`,
+          );
+          log(`  raw: ${toHex(report)}`);
+
+          await device.sendFeatureReport(0, report);
+          await new Promise((r) => setTimeout(r, waitMs));
+
+          let bytes = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const dv = await device.receiveFeatureReport(0);
+              bytes = normalizeResponse(dv);
+              break;
+            } catch (e) {
+              if (attempt === 2) throw e;
+              await new Promise((r) => setTimeout(r, 50));
+            }
+          }
+
+          log(`  收到(${bytes.length}B): ${toHex(bytes)}`);
+
+          // 校验:响应应回显 command_class/command_id,且 status 非 0x03(failure)/0x05(not supported)
+          let good = false;
+          if (bytes.length < 8) {
+            log("  ⚠️ 响应太短(<8字节)");
+          } else if (bytes[6] !== commandClass || bytes[7] !== commandId) {
+            log("  ⚠️ 响应的 class/id 与请求不匹配,可能接口不对");
+          } else if (bytes[0] === 0x03) {
+            log("  ⚠️ 设备返回 status=0x03 (Command Failure)");
+          } else if (bytes[0] === 0x05) {
+            log("  ⚠️ 设备返回 status=0x05 (Not Supported)");
+          } else {
+            good = true;
+          }
+          return { bytes, good };
+        }
+
+        // ---- 具体命令 (openrazer,针对 Viper V2 Pro) ----
+        async function getBattery() {
+          const { bytes: r } = await sendAndReceive(0x07, 0x80, [0x00, 0x00]);
+          const raw = r.length > 9 ? r[9] : -1; // 电量在 arguments[1] = 字节9
+          // 设备一般直接返回 0-100;若全量 0-255 则换算成百分数
+          const pct = raw <= 100 ? raw : Math.round((raw / 255) * 100);
+          $("battVal").textContent = raw >= 0 ? `${pct}%` : `--`;
+          log(`电量解析 = ${pct}% (字节9=0x${raw.toString(16)})`);
+        }
+
+        async function getCharging() {
+          const { bytes: r } = await sendAndReceive(0x07, 0x84, [0x00, 0x00]);
+          let v = r.length > 9 ? r[9] : -1; // 充电状态在 arguments[1] = 字节9 (openrazer)
+          let via = "字节9";
+          if (v !== 0 && v !== 1 && r.length > 11) {
+            // 兜底:个别固件放在字节11(社区实测)
+            v = r[11];
+            via = "字节11";
+          }
+          $("chargeVal").textContent =
+            v === 1 ? "是" : v === 0 ? "否" : `未知 (0x${v.toString(16)})`;
+          log(
+            `充电解析(${via}) = ${v === 1 ? "充电中" : v === 0 ? "未充电" : "未知"} (0x${v.toString(16)})`,
+          );
+        }
+
+        // ---- DPI 档位 (stages) ----
+        // openrazer: set_dpi_stages 0x04/0x06 dataSize=0x26:
+        //   arguments[0]=varstore(0x00) [1]=active_stage [2]=count
+        //   每挡 7 字节: [序号,X_hi,X_lo,Y_hi,Y_lo,reserved(2)] 共 count 组
+        // get_dpi_stages 0x04/0x86 (单个 arg,回显 varstore):
+        //   响应 arguments[1]=active_stage arguments[2]=count, 条目从 arguments+4 起每 7 字节
+        const STAGE_COLOR = [
+          "#f0625a",
+          "#39d353",
+          "#58a6ff",
+          "#39c5cf",
+          "#e3b341",
+        ];
+        const MAX_STAGES = 5;
+        // 出厂预设:400 / 800 / 1600 / 3200 / 6400 (官方默认,未启用档位读取时填充)
+        const STAGE_FILL = [400, 800, 1600, 3200, 6400];
+
+        const stagesEl = $("stages");
+        const enBoxes = [];
+        const dpiBoxes = [];
+        const nameSpans = [];
+
+        function buildStageRow(i) {
+          const row = document.createElement("div");
+          row.className = "stage-row";
+          row.innerHTML = `
+      <label class="stage-label" title="启用此档位(参与底部按钮循环)"><input type="checkbox" class="stage-en">${i + 1}</label>
+      <span class="dpi-wrap">
+        <input type="number" class="stage-dpi" min="100" max="30000" step="50" value="${STAGE_FILL[i]}">
+        <button type="button" class="spin up" title="+50">▲</button>
+        <button type="button" class="spin down" title="-50">▼</button>
+      </span>
+      <span class="stage-color" style="background:${STAGE_COLOR[i]};"></span>
+      <span class="stage-name"></span>`;
+          const en = row.querySelector(".stage-en");
+          const dpi = row.querySelector(".stage-dpi");
+          enBoxes.push(en);
+          dpiBoxes.push(dpi);
+          nameSpans.push(row.querySelector(".stage-name"));
+          dpi.addEventListener("change", () => stageDpi(i));
+          dpi.addEventListener("blur", () => stageDpi(i));
+          en.addEventListener("change", updateStageSummary);
+          row
+            .querySelector(".spin.up")
+            .addEventListener("click", () => stepStageDpi(i, 50));
+          row
+            .querySelector(".spin.down")
+            .addEventListener("click", () => stepStageDpi(i, -50));
+          stagesEl.appendChild(row);
+        }
+
+        for (let i = 0; i < MAX_STAGES; i++) buildStageRow(i);
+
+        const activeStageSel = $("activeStage");
+        const stageSummary = $("stageSummary");
+
+        function stageDpi(i) {
+          const input = dpiBoxes[i];
+          let v = parseInt(input.value, 10);
+          if (Number.isNaN(v)) v = 100;
+          v = Math.min(30000, Math.max(100, v));
+          if (String(input.value) !== String(v)) input.value = v;
+          return v;
+        }
+
+        function stepStageDpi(i, delta) {
+          const input = dpiBoxes[i];
+          input.value = stageDpi(i) + delta;
+          stageDpi(i); // 重新夹取/回写
+        }
+
+        function enabledStages() {
+          const out = [];
+          for (let i = 0; i < MAX_STAGES; i++)
+            if (enBoxes[i].checked) out.push(i);
+          return out;
+        }
+
+        function updateStageSummary() {
+          const enabled = enabledStages();
+          for (let i = 0; i < MAX_STAGES; i++) {
+            const on = enabled.includes(i);
+            dpiBoxes[i].disabled = !on;
+            nameSpans[i].textContent = on ? "" : "(跳过)";
+          }
+          stageSummary.textContent = `共 ${enabled.length} 挡参与`;
+          // 重建 active_stage 下拉: 1..count
+          const cur = parseInt(activeStageSel.value, 10) || 1;
+          activeStageSel.replaceChildren(
+            ...Array.from(
+              { length: enabled.length },
+              (_, s) =>
+                Object.assign(document.createElement("option"), {
+                  value: String(s + 1),
+                  textContent: `${s + 1}`,
+                }),
+            ),
+          );
+          if (cur <= enabled.length) activeStageSel.value = String(cur);
+        }
+
+        updateStageSummary();
+
+        // 从档位响应中解析第 i 挡的 X/Y (arguments+4 起,每挡 7 字节)
+        function stageXY(r, i) {
+          const base = 12 + i * 7;
+          const x = (r[base] << 8) | r[base + 1];
+          const y = (r[base + 2] << 8) | r[base + 3];
+          return { x, y };
+        }
+
+        async function getDpiStages() {
+          const args = new Array(0x26).fill(0x00); // 0x26 = dataSize for get
+          const { bytes: r } = await sendAndReceive(0x04, 0x86, args);
+          if (r.length <= 10) {
+            log("  ⚠️ 档位响应过短");
+            return;
+          }
+
+          const active = r[9]; // arguments[1]
+          const count = r[10]; // arguments[2]
+          log(`档位解析: active=${active} count=${count}`);
+          for (let i = 0; i < MAX_STAGES; i++) {
+            const on = i < count;
+            enBoxes[i].checked = on;
+            if (on) {
+              const { x, y } = stageXY(r, i);
+              dpiBoxes[i].value = x === y && x >= 0 ? x : "";
+              dpiBoxes[i].title =
+                x === y && x >= 0 ? `${x}` : `X=${x} Y=${y}`;
+            } else {
+              dpiBoxes[i].value = STAGE_FILL[i]; // 未启用档位填出厂预设值,启用后即可写入
+              dpiBoxes[i].title = `${STAGE_FILL[i]}`;
+            }
+          }
+          updateStageSummary();
+          const enabled = enabledStages();
+          if (active >= 1 && active <= enabled.length)
+            activeStageSel.value = String(active);
+          // 更新状态行的当前 DPI(活动挡的值)
+          const actIdx = active - 1;
+          if (actIdx >= 0 && actIdx < count) {
+            const { x, y } = stageXY(r, actIdx);
+            const label = x === y && x >= 0 ? `${x}` : `${x} x ${y}`;
+            if (x >= 0) $("dpiVal").textContent = label;
+          }
+        }
+
+        async function setDpiStages() {
+          const enabled = enabledStages();
+          if (!enabled.length) {
+            log("⚠️ 至少需要启用 1 个档位");
+            return;
+          }
+          const active = Math.min(
+            parseInt(activeStageSel.value, 10) || 1,
+            enabled.length,
+          );
+          const args = new Array(0x26).fill(0x00); // 定长 38 字节
+          args[0] = 0x00; // varstore
+          args[1] = active; // active_stage
+          args[2] = enabled.length; // count
+          for (let i = 0; i < enabled.length; i++) {
+            const dpi = stageDpi(enabled[i]);
+            const o = 3 + i * 7;
+            // [序号,X_hi,X_lo,Y_hi,Y_lo,0,0]
+            args[o] = i;
+            args[o + 1] = (dpi >> 8) & 0xff;
+            args[o + 2] = dpi & 0xff;
+            args[o + 3] = (dpi >> 8) & 0xff;
+            args[o + 4] = dpi & 0xff;
+          }
+          await sendAndReceive(0x04, 0x06, args);
+          log(`档位写入: count=${enabled.length} active=${active}`);
+        }
+
+        // poll rate 家族1 (0x00/0x05, 0x00/0x85) —— Viper V2 Pro 使用
+        const POLL_RATE_TO_BYTE = { 125: 0x08, 500: 0x02, 1000: 0x01 };
+        const POLL_BYTE_TO_RATE = { 0x08: 125, 0x02: 500, 0x01: 1000 };
+
+        async function setPollRate(hz) {
+          const byte = POLL_RATE_TO_BYTE[hz];
+          if (byte === undefined) {
+            log(`⚠️ ${hz}Hz 超出本鼠标支持范围(仅 125/500/1000),已跳过`);
+            return;
+          }
+          const { good } = await sendAndReceive(0x00, 0x05, [byte]); // set_polling_rate
+          log(
+            `回报率设置指令已发送: ${hz}Hz (byte 0x${byte.toString(16)})${good ? " ✓" : ""}`,
+          );
+        }
+
+        async function getPollRate() {
+          const { bytes: r } = await sendAndReceive(0x00, 0x85, [0x00]); // get_polling_rate
+          const byte = r.length > 8 ? r[8] : -1; // 值在 arguments[0] = 字节8
+          const rate = POLL_BYTE_TO_RATE[byte];
+          $("pollVal").textContent = rate
+            ? `${rate} Hz`
+            : byte >= 0
+              ? `未知`
+              : "--";
+          log(
+            `回报率解析 = ${rate ? rate + " Hz" : "未知"} (字节8=0x${byte.toString(16)})`,
+          );
+        }
+
+        // ---- 连接: 请求授权 → 打开全部接口 → 用 reportId=0 逐个探测,自动选能用的那个 ----
+        // 同一物理设备不同接口的稳定键(对象实例可能不稳定,用集合信息兜底)
+        function deviceKey(d) {
+          const cols = (d.collections || [])
+            .map(
+              (c) =>
+                `${c.usagePage}:${c.usage}:${(c.featureReports || []).length}`,
+            )
+            .join("|");
+          return `${d.vendorId}:${d.productId}:${d.productName}:${d.collections.length}:${cols}`;
+        }
+
+        $("btnConnect").addEventListener("click", async () => {
+          try {
+            const collected = new Map();
+            const merge = (devices) => {
+              for (const d of devices) {
+                if (
+                  d.vendorId !== VENDOR_ID ||
+                  !PRODUCT_IDS.includes(d.productId)
+                )
+                  continue;
+                const key = deviceKey(d);
+                if (!collected.has(key)) collected.set(key, d);
+              }
+            };
+
+            let cancelled = false;
+            try {
+              merge(
+                await navigator.hid.requestDevice({
+                  filters: PRODUCT_IDS.map((pid) => ({
+                    vendorId: VENDOR_ID,
+                    productId: pid,
+                  })),
+                }),
+              );
+            } catch (e) {
+              cancelled = true;
+            }
+            if (!cancelled) merge(await navigator.hid.getDevices());
+
+            if (!collected.size) {
+              log("未获得任何接口授权,请重试");
+              return;
+            }
+
+            let chosen = null;
+            for (const d of collected.values()) {
+              try {
+                if (!d.opened) await d.open();
+                if (!chosen && (await testBattery(d))) chosen = d;
+              } catch (e) {
+                /* 该接口不可用,继续试下一个 */
+              }
+            }
+
+            if (!chosen) {
+              log("未找到可用接口,请检查已退出 Razer Synapse 后重试。");
+              for (const d of collected.values()) {
+                try {
+                  if (d.opened) await d.close();
+                } catch (e) {}
+              }
+              return;
+            }
+
+            // 关闭其它接口,保留选中的
+            for (const d of collected.values()) {
+              if (d !== chosen) {
+                try {
+                  await d.close();
+                } catch (e) {}
+              }
+            }
+
+            device = chosen;
+            log(
+              `已连接: ${device.productName} (PID 0x${device.productId.toString(16)})`,
+            );
+            setConnected(true);
+            refreshStatus();
+          } catch (e) {
+            log(`连接失败: ${e.message}`);
+          }
+        });
+
+        $("btnDisconnect").addEventListener("click", async () => {
+          if (device) {
+            try {
+              await device.close();
+            } catch (e) {}
+            log("设备已断开");
+          }
+          device = null;
+          setConnected(false);
+        });
+
+        async function refreshStatus() {
+          try {
+            await getBattery();
+            await getCharging();
+            await getDpiStages();
+            await getPollRate();
+          } catch (e) {
+            log(`刷新失败: ${e.message}`);
+          }
+        }
+
+        function bindAction(id, action, failMsg) {
+          $(id).addEventListener("click", async () => {
+            try {
+              await action();
+            } catch (e) {
+              log(`${failMsg}: ${e.message}`);
+            }
+          });
+        }
+
+        bindAction("btnReadAll", refreshStatus, "刷新失败");
+        bindAction("btnSetStages", setDpiStages, "写入档位失败");
+        bindAction("btnGetStages", getDpiStages, "读取档位失败");
+        bindAction("btnGetPoll", getPollRate, "读取回报率失败");
+        bindAction(
+          "btnSetPoll",
+          () => setPollRate(parseInt($("pollRate").value, 10)),
+          "设置回报率失败",
+        );
+
+        $("btnClearLog").addEventListener("click", () => {
+          logBox.textContent = "";
+        });
+
+        if (!("hid" in navigator)) {
+          log(
+            "⚠️ 当前浏览器不支持 WebHID API,请使用桌面版 Chrome / Edge 打开本文件(file:// 或 https://,不能在沙盒 iframe 内运行)。",
+          );
+        } else {
+          log("就绪。请退出 Razer Synapse 后点击「连接设备」。");
+        }
+      })();
+    </script>
+  </body>
+</html>
