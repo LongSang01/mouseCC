@@ -12,7 +12,7 @@
 ## 项目结构
 
 ```
-mouse/
+mouseCC/
 ├── index.html                 # 入口页面
 ├── css/style.css              # 全局样式
 ├── js/
