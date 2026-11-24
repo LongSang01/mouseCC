@@ -48,17 +48,26 @@ export function setConnected(connected, device) {
   });
 }
 
-export function bindAction(id, action, failMsg) {
+/**
+ * 绑定点击事件:同一元素重复绑定会替换旧处理器,
+ * 这样即使驱动实例被重建也不会出现一次点击触发多次请求。
+ */
+export function bindClick(id, handler) {
   const el = $(id);
-  if (el) {
-    el.addEventListener("click", async () => {
-      try {
-        await action();
-      } catch (e) {
-        log(`${failMsg}: ${e.message}`);
-      }
-    });
-  }
+  if (!el) return;
+  if (el._clickHandler) el.removeEventListener("click", el._clickHandler);
+  el._clickHandler = handler;
+  el.addEventListener("click", handler);
+}
+
+export function bindAction(id, action, failMsg) {
+  bindClick(id, async () => {
+    try {
+      await action();
+    } catch (e) {
+      log(`${failMsg}: ${e.message}`);
+    }
+  });
 }
 
 export function buildStageRows(
@@ -154,22 +163,6 @@ export function buildStageRows(
     updateSummary,
     getStageDpi(i) {
       return clampDpi(i);
-    },
-    setStageData(i, dpi, color) {
-      dpiBoxes[i].value = dpi;
-      const dot = stagesEl.querySelector(`.stage-color[data-stage="${i}"]`);
-      if (dot && color) dot.style.background = color;
-    },
-    setAllStages(data) {
-      for (let i = 0; i < count; i++) {
-        if (data[i]) {
-          enBoxes[i].checked = true;
-          dpiBoxes[i].value = data[i].dpi;
-          const dot = stagesEl.querySelector(`.stage-color[data-stage="${i}"]`);
-          if (dot && data[i].color) dot.style.background = data[i].color;
-        }
-      }
-      updateSummary();
     },
   };
 }

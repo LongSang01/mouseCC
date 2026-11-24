@@ -2,8 +2,10 @@ export class HIDConnection {
   constructor() {
     this.device = null;
     this.inputListener = null;
-    this.pendingResolve = null;
-    this.pendingTimer = null;
+    /** 当前等待响应的请求(同一时刻只允许一个) */
+    this.waiter = null;
+    /** 请求串行队列 */
+    this.chain = Promise.resolve();
   }
 
   async requestDevices(vendorId, productIds) {
@@ -31,48 +33,73 @@ export class HIDConnection {
     );
   }
 
+  /**
+   * 串行化「发送 + 等待响应」。
+   * 只有一个响应槽位,若两个请求并发就会互相覆盖:先到的等待者被丢掉,
+   * 它的超时定时器还会把后一个等待者的槽位清空,表现为假超时。
+   * 所有收发都必须经过这里。
+   */
+  lock(fn) {
+    const run = this.chain.then(fn, fn);
+    this.chain = run.then(
+      () => {},
+      () => {},
+    );
+    return run;
+  }
+
   open(device, reportId) {
+    this._detachListener();
     this.device = device;
     this.inputListener = (e) => {
       if (e.reportId !== reportId) return;
-      const data = new Uint8Array(
-        e.data.buffer,
-        e.data.byteOffset,
-        e.data.byteLength,
+      const waiter = this.waiter;
+      if (!waiter) return;
+      this.waiter = null;
+      clearTimeout(waiter.timer);
+      waiter.resolve(
+        new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength),
       );
-      if (this.pendingResolve) {
-        const r = this.pendingResolve;
-        this.pendingResolve = null;
-        clearTimeout(this.pendingTimer);
-        this.pendingTimer = null;
-        r(data);
-      }
     };
     device.addEventListener("inputreport", this.inputListener);
   }
 
+  _detachListener() {
+    if (this.device && this.inputListener) {
+      this.device.removeEventListener("inputreport", this.inputListener);
+    }
+    this.inputListener = null;
+  }
+
+  _cancelWaiter(message) {
+    const waiter = this.waiter;
+    if (!waiter) return;
+    this.waiter = null;
+    clearTimeout(waiter.timer);
+    waiter.reject(new Error(message));
+  }
+
   async close() {
+    this._cancelWaiter("连接已关闭");
+    this._detachListener();
     if (this.device) {
-      if (this.inputListener) {
-        this.device.removeEventListener("inputreport", this.inputListener);
-      }
       try {
         await this.device.close();
       } catch (e) {}
     }
     this.device = null;
-    this.inputListener = null;
-    this.pendingResolve = null;
-    clearTimeout(this.pendingTimer);
   }
 
   waitForResponse(timeout = 300) {
+    this._cancelWaiter("请求被新的请求覆盖");
     return new Promise((resolve, reject) => {
-      this.pendingResolve = resolve;
-      this.pendingTimer = setTimeout(() => {
-        this.pendingResolve = null;
+      const waiter = { resolve, reject, timer: null };
+      waiter.timer = setTimeout(() => {
+        // 只清理自己的槽位,不能动后来者的等待
+        if (this.waiter === waiter) this.waiter = null;
         reject(new Error("响应超时"));
       }, timeout);
+      this.waiter = waiter;
     });
   }
 }

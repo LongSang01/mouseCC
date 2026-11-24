@@ -90,10 +90,10 @@
       ];
 
       let current = null;
+      let connecting = false;
 
-      function findDriver(vid, pid) {
-        return DRIVERS.find((d) => d.vid === vid && d.pids.includes(pid));
-      }
+      const findDriver = (vid, pid) =>
+        DRIVERS.find((d) => d.vid === vid && d.pids.includes(pid));
 
       if (!isWebHIDSupported()) {
         log("⚠️ 当前浏览器不支持 WebHID API,请使用桌面版 Chrome / Edge。");
@@ -104,6 +104,10 @@
       document
         .getElementById("btnConnect")
         .addEventListener("click", async () => {
+          if (connecting) return;
+          connecting = true;
+          let picked = null;
+          let driver = null;
           try {
             const allFilters = DRIVERS.flatMap((d) =>
               d.pids.map((pid) => ({ vendorId: d.vid, productId: pid })),
@@ -113,13 +117,19 @@
             });
             if (!devices.length) return;
 
-            const picked = devices[0];
-            const driver = findDriver(picked.vendorId, picked.productId);
+            picked = devices[0];
+            driver = findDriver(picked.vendorId, picked.productId);
             if (!driver) {
               log(
                 `不支持的设备: VID=0x${picked.vendorId.toString(16)} PID=0x${picked.productId.toString(16)}`,
               );
               return;
+            }
+
+            // 旧实例先释放,避免两个驱动实例同时占用同一个 HID 接口
+            if (current) {
+              await current.disconnect();
+              current = null;
             }
 
             current = new driver.Class();
@@ -134,25 +144,31 @@
           } catch (e) {
             log(`连接失败: ${e.message}`);
             if (
-              e.message.includes("open") ||
-              e.message.includes("access") ||
-              e.message.includes("Failed")
+              picked &&
+              (e.message.includes("open") ||
+                e.message.includes("access") ||
+                e.message.includes("Failed"))
             ) {
-              const picked = devices?.[0];
-              if (picked) {
-                showUdevHint([{ vid: picked.vendorId, pid: picked.productId }], logRaw);
-              }
+              showUdevHint(
+                [{ vid: picked.vendorId, pid: picked.productId }],
+                logRaw,
+              );
             }
+          } finally {
+            connecting = false;
           }
         });
 
       document
         .getElementById("btnDisconnect")
         .addEventListener("click", async () => {
-          if (current) {
+          if (!current) return;
+          try {
             await current.disconnect();
-            current = null;
+          } catch (e) {
+            log(`断开失败: ${e.message}`);
           }
+          current = null;
         });
     </script>
   </body>

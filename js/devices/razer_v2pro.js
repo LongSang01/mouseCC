@@ -46,7 +46,10 @@ export class RazerV2Pro extends DeviceBase {
           await this.refreshStatus();
           return true;
         }
-      } catch (e) {}
+      } catch (e) {
+        log(`  尝试 ${d.productName}: ${e.message}`);
+        await this.hid.close();
+      }
     }
 
     log("未找到可用接口");
@@ -57,19 +60,13 @@ export class RazerV2Pro extends DeviceBase {
     return false;
   }
 
-  async disconnect() {
-    await super.disconnect(this.hid);
-  }
-
-  async refreshStatus() {
-    try {
-      await this.getBattery();
-      await this.getCharging();
-      await this.getDpiStages();
-      await this.getPollRate();
-    } catch (e) {
-      log(`刷新失败: ${e.message}`);
-    }
+  refreshTasks() {
+    return [
+      () => this.getBattery(),
+      () => this.getCharging(),
+      () => this.getDpiStages(),
+      () => this.getPollRate(),
+    ];
   }
 
   async _testProbe() {
@@ -185,9 +182,5 @@ export class RazerV2Pro extends DeviceBase {
     }
     await this.proto.sendAndReceive(0x00, 0x05, [byte]);
     log(`回报率设置: ${hz}Hz`);
-  }
-
-  initUI() {
-    super.initUI(this.hid);
   }
 }

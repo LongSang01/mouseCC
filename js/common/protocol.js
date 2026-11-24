@@ -34,36 +34,38 @@ export class RazerProtocol extends Protocol {
   }
 
   async sendAndReceive(commandClass, commandId, data = [], waitMs = 90) {
-    if (!this.hid.device) throw new Error("设备未连接");
-    const report = this.buildFrame(commandClass, commandId, data);
+    return this.hid.lock(async () => {
+      if (!this.hid.device) throw new Error("设备未连接");
+      const report = this.buildFrame(commandClass, commandId, data);
 
-    log(
-      `TX class=0x${commandClass.toString(16)} id=0x${commandId.toString(16)} data=[${toHex(data)}]`,
-    );
-    log(`  raw: ${toHex(report)}`);
-    await this.hid.device.sendFeatureReport(0, report);
-    await new Promise((r) => setTimeout(r, waitMs));
+      log(
+        `TX class=0x${commandClass.toString(16)} id=0x${commandId.toString(16)} data=[${toHex(data)}]`,
+      );
+      log(`  raw: ${toHex(report)}`);
+      await this.hid.device.sendFeatureReport(0, report);
+      await new Promise((r) => setTimeout(r, waitMs));
 
-    let bytes = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const dv = await this.hid.device.receiveFeatureReport(0);
-        bytes = this.normalizeResponse(dv);
-        break;
-      } catch (e) {
-        if (attempt === 2) throw e;
-        await new Promise((r) => setTimeout(r, 50));
+      let bytes = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const dv = await this.hid.device.receiveFeatureReport(0);
+          bytes = this.normalizeResponse(dv);
+          break;
+        } catch (e) {
+          if (attempt === 2) throw e;
+          await new Promise((r) => setTimeout(r, 50));
+        }
       }
-    }
 
-    log(`  收到(${bytes.length}B): ${toHex(bytes)}`);
+      log(`  收到(${bytes.length}B): ${toHex(bytes)}`);
 
-    if (bytes.length < 8) throw new Error("响应过短");
-    if (bytes[6] !== commandClass || bytes[7] !== commandId)
-      throw new Error("class/id 不匹配");
-    if (bytes[0] === 0x03) throw new Error("Command Failure");
-    if (bytes[0] === 0x05) throw new Error("Not Supported");
-    return { bytes, good: true };
+      if (bytes.length < 8) throw new Error("响应过短");
+      if (bytes[6] !== commandClass || bytes[7] !== commandId)
+        throw new Error("class/id 不匹配");
+      if (bytes[0] === 0x03) throw new Error("Command Failure");
+      if (bytes[0] === 0x05) throw new Error("Not Supported");
+      return { bytes, good: true };
+    });
   }
 }
 
@@ -93,15 +95,7 @@ export class JmProtocol extends Protocol {
     return a;
   }
 
-  async sendAndReceive(cmd, addr = 0, len = 0, data = [], waitMs = 300) {
-    if (!this.hid.device) throw new Error("设备未连接");
-    const frame = this.buildFrame(cmd, addr, len, data);
-
-    log(
-      `TX cmd=0x${cmd.toString(16)} addr=0x${addr.toString(16).padStart(4, "0")} len=${len}`,
-    );
-    log(`  raw: ${toHex(frame)}`);
-
+  async _write(frame) {
     try {
       await this.hid.device.sendReport(this.REPORT_ID, frame.slice(1));
     } catch (e1) {
@@ -111,21 +105,35 @@ export class JmProtocol extends Protocol {
         throw new Error(`发送失败: ${e1.message} / ${e2.message}`);
       }
     }
+  }
 
-    const raw = await this.hid.waitForResponse(waitMs);
+  async sendAndReceive(cmd, addr = 0, len = 0, data = [], waitMs = 300) {
+    return this.hid.lock(async () => {
+      if (!this.hid.device) throw new Error("设备未连接");
+      const frame = this.buildFrame(cmd, addr, len, data);
 
-    const bytes = new Uint8Array(this.FRAME_SIZE);
-    bytes[0] = this.REPORT_ID;
-    bytes.set(raw.slice(0, 16), 1);
-
-    log(`  收到(${raw.length}B): ${toHex(raw)}`);
-
-    if (bytes[1] !== cmd) {
-      throw new Error(
-        `回显不符: expect 0x${cmd.toString(16)}, got 0x${bytes[1].toString(16)}`,
+      log(
+        `TX cmd=0x${cmd.toString(16)} addr=0x${addr.toString(16).padStart(4, "0")} len=${len}`,
       );
-    }
-    return bytes;
+      log(`  raw: ${toHex(frame)}`);
+
+      await this._write(frame);
+      const raw = await this.hid.waitForResponse(waitMs);
+
+      const bytes = new Uint8Array(this.FRAME_SIZE);
+      bytes[0] = this.REPORT_ID;
+      bytes.set(raw.slice(0, this.FRAME_SIZE - 1), 1);
+
+      log(`  收到(${raw.length}B): ${toHex(raw)}`);
+
+      if (raw.length < this.FRAME_SIZE - 1) throw new Error("响应过短");
+      if (bytes[1] !== cmd) {
+        throw new Error(
+          `回显不符: expect 0x${cmd.toString(16)}, got 0x${bytes[1].toString(16)}`,
+        );
+      }
+      return bytes;
+    });
   }
 
   async sendCommand(cmd, addr = 0, len = 0, data = []) {

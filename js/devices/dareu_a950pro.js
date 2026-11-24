@@ -31,6 +31,9 @@ const INFO = {
   readyHint: "点击「连接设备」开始。",
 };
 
+const cssColor = (...rgb) =>
+  `#${rgb.map((v) => (v & 0xff).toString(16).padStart(2, "0")).join("")}`;
+
 export class DareuA950Pro extends DeviceBase {
   constructor() {
     super(INFO);
@@ -70,7 +73,7 @@ export class DareuA950Pro extends DeviceBase {
 
         const info = await this.proto.sendCommand(0x01, 0, 8);
         if (info[10] !== 10 || info[11] !== 1) {
-          this.hid.close();
+          await this.hid.close();
           continue;
         }
 
@@ -94,18 +97,11 @@ export class DareuA950Pro extends DeviceBase {
         return true;
       } catch (e) {
         log(`  尝试 ${d.productName}: ${e.message}`);
-        this.hid.close();
+        await this.hid.close();
       }
     }
     log("未找到可用接口");
     return false;
-  }
-
-  async disconnect() {
-    await super.disconnect(this.hid);
-  }
-  async refreshStatus() {
-    await super.refreshStatus();
   }
 
   async _getBuffer(addr, len) {
@@ -158,9 +154,8 @@ export class DareuA950Pro extends DeviceBase {
     if (count > 0) {
       const cb = await this._getBuffer(44, count * 4);
       for (let i = 0; i < count; i++) {
-        const [r, g, b] = [cb[i * 4], cb[i * 4 + 1], cb[i * 4 + 2]];
-        stageColors[i] =
-          `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+        const o = i * 4;
+        stageColors[i] = cssColor(cb[o], cb[o + 1], cb[o + 2]);
       }
     }
 
@@ -242,9 +237,5 @@ export class DareuA950Pro extends DeviceBase {
     await this._setBuffer(0, [byte, (85 - byte) & 0xff]);
     log(`回报率设置: ${hz}Hz`);
     await this.getPollRate();
-  }
-
-  initUI() {
-    super.initUI(this.hid);
   }
 }
