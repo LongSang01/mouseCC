@@ -33,6 +33,7 @@ export class DeviceBase {
     const wasConnected = !!this.hid?.device;
     await this.hid?.close();
     setConnected(false, null);
+    this.stages?.reset();
     if (wasConnected) log("设备已断开");
   }
 
@@ -48,7 +49,8 @@ export class DeviceBase {
     try {
       for (const task of this.refreshTasks()) await task();
     } catch (e) {
-      log(`刷新失败: ${e.message}`);
+      // 断开导致的失败不必再提示
+      if (this.hid?.device) log(`刷新失败: ${e.message}`);
     } finally {
       this._refreshing = false;
     }

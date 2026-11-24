@@ -163,10 +163,7 @@ export class DareuA950Pro extends DeviceBase {
       this.stages.enBoxes[i].checked = i < count;
       this.stages.dpiBoxes[i].value =
         i < count ? keyToDpi(stageKeys[i]) : this.info.defaultFill[i];
-      const dot = document.querySelector(
-        `#stages .stage-color[data-stage="${i}"]`,
-      );
-      if (dot) dot.style.background = stageColors[i];
+      this.stages.setStageColor(i, stageColors[i]);
     }
     this.stages.updateSummary();
     if (active >= 1 && active <= count) {
@@ -200,21 +197,9 @@ export class DareuA950Pro extends DeviceBase {
 
     const colorBlocks = [];
     for (const i of enabled) {
-      const dot = document.querySelector(
-        `#stages .stage-color[data-stage="${i}"]`,
-      );
-      const m = dot?.style.background.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-      let [r, g, b] = m ? [+m[1], +m[2], +m[3]] : [255, 255, 255];
-      if (!m) {
-        const h = dot?.style.background.match(/#([0-9a-f]{6})/i);
-        if (h)
-          [r, g, b] = [
-            parseInt(h[1].slice(0, 2), 16),
-            parseInt(h[1].slice(2, 4), 16),
-            parseInt(h[1].slice(4, 6), 16),
-          ];
-      }
-      colorBlocks.push(r, g, b, colorChecksum(r, g, b));
+      const hex = this.stages.getStageColor(i) || "#ffffff";
+      const rgb = [1, 3, 5].map((o) => parseInt(hex.slice(o, o + 2), 16));
+      colorBlocks.push(...rgb, colorChecksum(...rgb));
     }
     await this._setBuffer(44, colorBlocks);
     log(`档位写入: ${count}档, 当前第${active}档`);

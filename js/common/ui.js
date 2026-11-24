@@ -23,6 +23,29 @@ export function toHex(bytes) {
     .join(" ");
 }
 
+const STATUS_FIELDS = ["battVal", "chargeVal", "dpiVal", "pollVal"];
+
+/** '#rrggbb' / 'rgb(r, g, b)' -> '#rrggbb',解析失败返回 null */
+export function toHexColor(css) {
+  if (!css) return null;
+  const rgb = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(css);
+  if (rgb)
+    return `#${rgb
+      .slice(1, 4)
+      .map((v) => (+v).toString(16).padStart(2, "0"))
+      .join("")}`;
+  const hex = /^#([0-9a-f]{6})$/i.exec(css.trim());
+  return hex ? `#${hex[1].toLowerCase()}` : null;
+}
+
+/** 清空状态面板,避免断开后还显示上一台设备的数据 */
+export function resetStatusUI() {
+  for (const id of STATUS_FIELDS) {
+    const el = $(id);
+    if (el) el.textContent = "--";
+  }
+}
+
 export function setConnected(connected, device) {
   const dot = $("statusDot");
   const text = $("statusText");
@@ -32,6 +55,7 @@ export function setConnected(connected, device) {
       ? `已连接: ${device.productName || "HID Device"} (PID 0x${device.productId.toString(16).padStart(4, "0")})`
       : "未连接";
   }
+  if (!connected) resetStatusUI();
   const btnConnect = $("btnConnect");
   const btnDisconnect = $("btnDisconnect");
   if (btnConnect) btnConnect.disabled = connected;
@@ -77,9 +101,14 @@ export function buildStageRows(
   stageFill,
   maxDpi = 30000,
 ) {
+  // 重复连接时会重新构建,必须先清空旧档位行,
+  // 否则新旧两套 .stage-color[data-stage] 会同时存在,选色/高亮会串到旧行上
+  stagesEl.replaceChildren();
+
   const enBoxes = [];
   const dpiBoxes = [];
   const nameSpans = [];
+  const colorDots = [];
 
   function buildRow(i) {
     const row = document.createElement("div");
@@ -98,6 +127,7 @@ export function buildStageRows(
     enBoxes.push(en);
     dpiBoxes.push(dpi);
     nameSpans.push(row.querySelector(".stage-name"));
+    colorDots.push(row.querySelector(".stage-color"));
     dpi.addEventListener("change", () => clampDpi(i));
     dpi.addEventListener("blur", () => clampDpi(i));
     en.addEventListener("change", updateSummary);
@@ -151,6 +181,25 @@ export function buildStageRows(
     }
   }
 
+  function setStageColor(i, color) {
+    const dot = colorDots[i];
+    if (dot && color) dot.style.background = color;
+  }
+
+  function getStageColor(i) {
+    return toHexColor(colorDots[i]?.style.background);
+  }
+
+  /** 恢复默认值(断开连接时用),避免下次连接看到上一台设备的档位 */
+  function reset() {
+    for (let i = 0; i < count; i++) {
+      enBoxes[i].checked = false;
+      dpiBoxes[i].value = stageFill[i] || 1600;
+      setStageColor(i, stageColors[i] || "#888");
+    }
+    updateSummary();
+  }
+
   for (let i = 0; i < count; i++) buildRow(i);
   updateSummary();
 
@@ -161,6 +210,9 @@ export function buildStageRows(
     clampDpi,
     enabledStages,
     updateSummary,
+    setStageColor,
+    getStageColor,
+    reset,
     getStageDpi(i) {
       return clampDpi(i);
     },
